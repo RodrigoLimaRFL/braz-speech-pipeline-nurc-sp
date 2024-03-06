@@ -42,7 +42,14 @@ def export_corpus_dataset(
     export_json_metadata: bool = False,
     export_text_grid: bool = False,
 ):
-    audios = db.get_audios_by_corpus_id(corpus_id, filter_finished=True)
+    '''
+    temporary measure while there is no option to select specific audios
+    '''
+
+    # audios = db.get_audios_by_corpus_id(corpus_id, filter_finished=True)
+    # audios = db.get_audios_nurcsp_dev()
+    audios = db.get_audios_nurcsp_test()
+    # audios = db.get_audios_nurcsp_train()
 
     if not isinstance(audios, DataFrame) or audios.empty:
         logger.info(f"No audios found for corpus {corpus_id}.")
@@ -51,7 +58,8 @@ def export_corpus_dataset(
     if debug:
         audios = audios.sample(10)
 
-    segments = db.get_segments_by_audios_id_list(audios.id.tolist())
+    #segments = db.get_segments_by_audios_id_list(audios.id.tolist())
+    segments = db.get_segments_by_audio_id_with_extra_info(audios.id.tolist())
 
     if not isinstance(segments, DataFrame) or segments.empty:
         logger.info(f"No segments found for corpus {corpus_id}.")
@@ -78,7 +86,8 @@ def export_corpus_dataset(
 
     if export_to_csv:
         logger.info(f"Exporting audios and segments for corpus {corpus_id} to csv.")
-        exporter.export_to_csv(corpus_id, audios, segments)
+        #exporter.export_to_csv(corpus_id, audios, segments)
+        exporter.export_for_asr_csv(corpus_id, segments, "test")
 
     if export_concanated_text or export_speakers_text or export_text_grid or export_json_metadata or export_original_audios:
         prepared_audios = audios.rename(

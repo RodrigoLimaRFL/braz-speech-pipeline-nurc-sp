@@ -4,6 +4,7 @@ import textgrid
 from typing import List
 import soundfile as sf
 import json
+import re
 
 from src.models.file import AudioFormat, File
 from src.clients.google_drive import GoogleDriveClient
@@ -29,6 +30,134 @@ class Exporter:
         )
         segments.to_parquet(
             self.output_folder / f"corpus_{corpus_id}_segments.parquet", index=False
+        )
+        pass
+
+        
+    def analyse_json_metadata(self, metadata: str):
+        '''
+        Analyse the JSON metadata (saved as a str) of an audio
+
+        Args:
+            metadata (str): The metadata
+
+        Returns:
+            dict: The analysed metadata
+        '''
+        analysed_metadata = {}
+        # Parse JSON string into a dictionary
+        metadata_dict = json.loads(metadata)
+
+        # Get the keys from the dictionary
+        keys = metadata_dict.keys()
+
+        # Transform keys into a string
+        keys_string = ', '.join(keys)
+
+        # Check if the keys are in the metadata
+        if "sexo" in keys:
+            analysed_metadata["sex"] = metadata_dict["sexo"]
+        else:
+            analysed_metadata["sex"] = "unknown"
+
+        if "faixa_etaria" in keys:
+            analysed_metadata["age_range"] = metadata_dict["faixa_etaria"]
+        else:
+            analysed_metadata["age_range"] = "unknown"
+        
+        return analysed_metadata
+
+    def export_for_asr_csv(self, corpus_id: int, segments: pd.DataFrame, division: str = "test"):
+        '''
+        Export the segments to a CSV file for ASR
+
+        Args:
+            corpus_id (int): The corpus ID
+            segments (pd.DataFrame): The segments DataFrame
+            division (str, optional): The division name. Defaults to "test".
+        '''
+        # Substrings to remove from the text
+        substrings = ["(risos)", "(gargalhadas)", "(", ")"]
+        # Add new columns to the segments DataFrame
+        segments['quality'] = ""
+        segments["speech_genre"] = ""
+        segments["sex"] = ""
+        segments["age_range"] = ""
+        modified_rows = []
+        for index, row in segments.iterrows():
+            row['quality'] = 'high'
+            # Check if the value in the 'text' column is '###'
+            if row['text'] == '###':
+                # If so, drop the row
+                continue
+            
+            # strip the text so the whitespace does not interfere
+            trimmed_text = row['text'].strip()
+
+            # Remove the substrings from the text
+            for substring in substrings:
+                if substring in trimmed_text:
+                    trimmed_text = trimmed_text.replace(substring, "")
+                    row['quality'] = 'low'
+
+            trimmed_text = trimmed_text.strip()
+
+            # Remove all truncated words
+            if trimmed_text.endswith('>') or trimmed_text.endswith('<'):
+                trimmed_text = ' '.join(trimmed_text.split()[:-1])
+                row['quality'] = 'low'
+
+            if trimmed_text.startswith('<') or trimmed_text.startswith('>'):
+                trimmed_text = ' '.join(trimmed_text.split()[1:])
+                row['quality'] = 'low'
+
+            trimmed_text = trimmed_text.replace(">", "")
+            trimmed_text = trimmed_text.replace("<", "")
+
+            trimmed_text = trimmed_text.strip()
+
+            row['text'] = trimmed_text
+
+
+            # Extract the audio type from the audio name
+            genre = 'not_defined'
+            pattern = r'^SP_(D2|DID|EF)_' #regex pattern to extract the audio type
+            match = re.search(pattern, row['audio_name'])
+
+            if match:
+                if match.group(1) == 'D2':
+                    genre = 'dialogue'
+                elif match.group(1) == 'DID':
+                    genre = 'interview'
+                elif match.group(1) == 'EF':
+                    genre = 'lecture and talks'
+
+            row['speech_genre'] = genre
+
+
+            json_metadata = Exporter.analyse_json_metadata(self, row['json_metadata'])
+
+            row['sex'] = json_metadata['sex']
+            row['age_range'] = json_metadata['age_range']
+
+
+            modified_rows.append(row)
+
+        modified_segments = pd.DataFrame(modified_rows)
+        df = modified_segments[["audio_name", "file_path", "text", "start_time", "end_time", "sex", "age_range", "speech_genre", "num_speakers", "speaker_id", "quality"]]
+        # duration in seconds
+        df["duration"] = (df["end_time"] - df["start_time"]).round(3)
+        # language variety
+        df["variety"] = 'pt-br'
+        # accent
+        df["accent"] = 'sp-city'
+        # speech style
+        df["speech_style"] = "spontaneous speech"
+
+        df = df[["audio_name", "file_path", "text", "start_time", "end_time", "duration", "quality", "speech_genre", "speech_style", "variety", "accent", "sex", "age_range", "num_speakers", "speaker_id"]]
+
+        df.to_csv(
+            self.output_folder / f"corpus_{corpus_id}_{division}.csv", index=False
         )
         pass
 

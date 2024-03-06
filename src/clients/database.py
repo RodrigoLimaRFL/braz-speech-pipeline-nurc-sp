@@ -144,6 +144,99 @@ class Database:
         { f"AND finished >= 1" if filter_finished else ""}
         """
         return self._run_query(query)
+    
+    def get_audios_nurcsp_test(self):
+        '''
+        Get the chosen test audios for the NURC-SP corpus
+
+        Returns:
+            pd.DataFrame: The DataFrame with the audios
+        '''
+
+        query = f"""
+        SELECT *
+        FROM Audio
+        WHERE corpus_id = 2
+        AND (error_flag is null OR error_flag = 0 OR error_flag = false)
+        AND name IN ('SP_EF_363',
+        'SP_EF_154',
+        'SP_EF_106',
+        'SP_EF_057',
+        'SP_EF_187',
+        'SP_D2_169',
+        'SP_D2_334',
+        'SP_D2_342',
+        'SP_DID_271',
+        'SP_DID_004',
+        'SP_DID_019',
+        'SP_DID_027',
+        'SP_DID_200',
+        'SP_DID_279'
+        )
+        """
+
+        return self._run_query(query)
+    
+    def get_audios_nurcsp_dev(self):
+        '''
+        Get the chosen dev audios for the NURC-SP corpus
+
+        Returns:
+            pd.DataFrame: The DataFrame with the audios
+        '''
+
+        query = f"""
+        SELECT *
+        FROM Audio
+        WHERE corpus_id = 2
+        AND (error_flag is null OR error_flag = 0 OR error_flag = false)
+        AND name IN ('SP_EF_366',
+        'SP_EF_364',
+        'SP_EF_375',
+        'SP_D2_173',
+        'SP_DID_119',
+        'SP_DID_202'
+        )
+        """
+
+        return self._run_query(query)
+    
+    def get_audios_nurcsp_train(self):
+        '''
+        Get the chosen train audios for the NURC-SP corpus
+
+        Returns:
+            pd.DataFrame: The DataFrame with the audios
+        '''
+        query = f"""
+        SELECT *
+        FROM Audio
+        WHERE corpus_id = 2
+        AND (error_flag is null OR error_flag = 0 OR error_flag = false)
+        AND name NOT IN ('SP_EF_363',
+        'SP_EF_154',
+        'SP_EF_106',
+        'SP_EF_057',
+        'SP_EF_187',
+        'SP_D2_169',
+        'SP_D2_334',
+        'SP_D2_342',
+        'SP_DID_271',
+        'SP_DID_004',
+        'SP_DID_019',
+        'SP_DID_027',
+        'SP_DID_200',
+        'SP_DID_279',
+        'SP_EF_366',
+        'SP_EF_364',
+        'SP_EF_375',
+        'SP_D2_173',
+        'SP_DID_119',
+        'SP_DID_202'
+        )
+        """
+
+        return self._run_query(query)
 
     def get_segments_by_audio_id(self, audio_id):
         query = f"""
@@ -158,5 +251,16 @@ class Database:
         SELECT *
         FROM Dataset
         WHERE audio_id IN ({','.join([str(id) for id in audios_ids])})
+        """
+        return self._run_query(query)
+    
+    def get_segments_by_audio_id_with_extra_info(self, audios_ids: List[int]):
+        query = f"""
+        SELECT 
+        d.*, a.name as audio_name, a.json_metadata as json_metadata, a.num_speakers as num_speakers
+        FROM Dataset d
+        JOIN Audio a
+        ON d.audio_id = a.id
+        WHERE d.audio_id IN ({','.join([str(id) for id in audios_ids])})
         """
         return self._run_query(query)
